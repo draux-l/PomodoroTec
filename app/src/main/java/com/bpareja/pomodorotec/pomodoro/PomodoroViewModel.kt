@@ -59,15 +59,15 @@ class PomodoroViewModel(application: Application) : AndroidViewModel(application
     // Variables de control del timer
     private var countDownTimer: CountDownTimer? = null
 
-    private var totalTimeInMillis: Long = 25 * 60 * 1000L // Tiempo total (25 min)
-    private var timeRemainingInMillis: Long = 25 * 60 * 1000L // Tiempo inicial para FOCUS
+    private var totalTimeInMillis: Long = 25 * 1000L // Tiempo total (25 min)
+    private var timeRemainingInMillis: Long = 25 * 1000L // Tiempo inicial para FOCUS
 
     // ----------- FUNCIONES PRINCIPALES ------------
 
     fun startFocusSession() {
         countDownTimer?.cancel()
         _currentPhase.value = Phase.FOCUS
-        timeRemainingInMillis = 25 * 60 * 1000L
+        timeRemainingInMillis = 25 * 1000L
         totalTimeInMillis = timeRemainingInMillis
         _timeLeft.value = "25:00"
         _progress.value = 0f
@@ -78,7 +78,7 @@ class PomodoroViewModel(application: Application) : AndroidViewModel(application
 
     private fun startBreakSession() {
         _currentPhase.value = Phase.BREAK
-        timeRemainingInMillis = 5 * 60 * 1000L
+        timeRemainingInMillis = 5 * 1000L
         totalTimeInMillis = timeRemainingInMillis
         _timeLeft.value = "05:00"
         _progress.value = 0f
@@ -180,30 +180,51 @@ class PomodoroViewModel(application: Application) : AndroidViewModel(application
             context, 0, intent, PendingIntent.FLAG_IMMUTABLE
         )
 
+        // Personalización: títulos más descriptivos y motivacionales según la fase
         val customTitle = when (_currentPhase.value) {
-            Phase.FOCUS -> "🎯 ¡Tiempo de Concentración!"
-            Phase.BREAK -> "☕ ¡Momento de Descanso!"
-            else -> title
+            Phase.FOCUS -> "🎓 Sesión de estudio en curso"      // Antes: "¡Tiempo de Concentración!"
+            Phase.BREAK -> "😌 Pausa activa de descanso"         // Antes: "¡Momento de Descanso!"
+            else -> "PomodoroTec"
         }
+
+        // Mantengo el formato de tiempo pero lo uso dentro de mensajes más completos
         val formattedTime = _timeLeft.value?.let { if (it != "00:00") it else "Finalizado" } ?: "25:00"
+
+        // Personalización: mensajes orientados a estudiantes, con instrucciones concretas
         val customMessage = when (_currentPhase.value) {
-            Phase.FOCUS -> "⏰ Restan $formattedTime\n💪 ¡Mantén el enfoque!"
-            Phase.BREAK -> "⏰ Restan $formattedTime\n🧘‍♂️ ¡Relájate unos minutos!"
-            else -> message
+            Phase.FOCUS -> "Te quedan $formattedTime para concentrarte. Cierra distracciones y sigue avanzando 📚"
+            Phase.BREAK -> "Te quedan $formattedTime de descanso. Estira las piernas, toma agua y relaja la vista ☕"
+            else -> "Organiza tus bloques de estudio con PomodoroTec."
         }
+
+
+        // Personalización: imágenes diferentes para estudiar y descansar (estilo más académico)
         val bigImage = BitmapFactory.decodeResource(
             context.resources,
-            if (_currentPhase.value == Phase.FOCUS) R.drawable.focus_image
-            else R.drawable.break_image
+            if (_currentPhase.value == Phase.FOCUS) R.drawable.img_study_focus   // Imagen temática para estudio
+            else R.drawable.img_study_break                                      // Imagen temática para descanso
         )
-        val style = NotificationCompat.BigPictureStyle().bigPicture(bigImage)
 
-        val notificationColor = if (_currentPhase.value == Phase.FOCUS) Color.rgb(178, 34, 34) else Color.rgb(46, 139, 87)
+        // Comentario: uso BigPictureStyle para que al expandir la notificación se vea una imagen motivadora
+        val style = NotificationCompat.BigPictureStyle()
+            .bigPicture(bigImage)
 
-        val vibrationPattern = if (_currentPhase.value == Phase.FOCUS)
-            longArrayOf(0, 100, 100, 100)
-        else
-            longArrayOf(0, 500, 500)
+        // Personalización: paleta de colores más suave y coherente con una app de estudio
+        val notificationColor = if (_currentPhase.value == Phase.FOCUS) {
+            Color.rgb(220, 20, 60)   // Rojo más vivo para indicar foco (Crimson)
+        } else {
+            Color.rgb(60, 179, 113)  // Verde suave para descanso (MediumSeaGreen)
+        }
+
+
+        // Personalización: patrón de vibración distinto para cada fase
+        // FOCUS: vibración corta y repetida para llamar la atención
+        // BREAK: vibración un poco más larga pero menos intrusiva
+        val vibrationPattern = if (_currentPhase.value == Phase.FOCUS) {
+            longArrayOf(0, 150, 100, 150)   // inicio inmediato, vibra 150ms, pausa 100ms, vibra 150ms
+        } else {
+            longArrayOf(0, 80, 80, 80)      // vibraciones más suaves para el descanso
+        }
 
         // Intents para acciones
         val pauseIntent = Intent(context, PomodoroReceiver::class.java).apply { action = "PAUSE_TIMER" }
@@ -243,18 +264,20 @@ class PomodoroViewModel(application: Application) : AndroidViewModel(application
             .setColor(notificationColor)
             .setColorized(true)
             .setLights(notificationColor, 1000, 1000)
-            .setVibrate(vibrationPattern)
-            .setProgress(100, progress, false)
+            .setVibrate(vibrationPattern)   // Diferencio por patrón para que el usuario reconozca la fase sin mirar
             .setSound(
                 RingtoneManager.getDefaultUri(
-                    if (_currentPhase.value == Phase.FOCUS) RingtoneManager.TYPE_RINGTONE
-                    else RingtoneManager.TYPE_NOTIFICATION
+                    if (_currentPhase.value == Phase.FOCUS)
+                        RingtoneManager.TYPE_ALARM           // Más fuerte para iniciar estudio
+                    else
+                        RingtoneManager.TYPE_NOTIFICATION    // Más suave para descanso
                 )
             )
+            .setProgress(100, progress, false)
             // Botones
-            .addAction(R.drawable.baseline_pause_circle_24, "Pausar", pausePendingIntent)
-            .addAction(R.drawable.ic_resume, "Reanudar", resumePendingIntent)
-            .addAction(R.drawable.ic_stop, "Terminar", endPendingIntent)
+            .addAction(R.drawable.baseline_pause_circle_24, "Pausar Estudio", pausePendingIntent)
+            .addAction(R.drawable.ic_resume, "Continuar Sesiób", resumePendingIntent)
+            .addAction(R.drawable.ic_stop, "Finalizar Ciclo", endPendingIntent)
 
         if (_currentPhase.value == Phase.BREAK) {
             builder.addAction(
